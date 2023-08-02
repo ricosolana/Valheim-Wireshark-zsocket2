@@ -106,6 +106,9 @@ return {
         --zdodata_zdopkg_vector3_hash = ProtoField.int32(NAME .. ".zdodata.zdopkg.float.hash", "Hash", base.DEC),        
         --zdodata_zdopkg_vector3_x = ProtoField.float(NAME .. ".zdodata.zdopkg.float.value", "Value", base.DEC),
         
+    routedrpc_globalkeys_count = ProtoField.int32(NAME .. ".routedrpc.globalkeys.count", "Count", base.DEC),
+    routedrpc_globalkeys_key = ProtoField.string(NAME .. ".routedrpc.globalkeys.key", "Key"),
+        
     --text_length = ProtoField.uint16(NAME .. ".text_length", "Text Length", base.DEC),
     --text = ProtoField.string(NAME .. ".text", "Text"),
     --from_length = ProtoField.uint8(NAME .. ".from_length", "From Length"),

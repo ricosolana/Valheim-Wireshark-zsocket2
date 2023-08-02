@@ -2,10 +2,16 @@ local readers = assert(require("readers"))
 local fields = assert(require("fields"))
 local prefabs = assert(require("prefabs"))
 local constants = assert(require("constants"))
+local routed = assert(require("routed"))
 
 local proto = readers.get_proto()
 
 local PORT = constants.PORT
+
+local ENTITIES = {
+    -- created zdos will be stored here
+    -- store zdoid-string and prefab-type
+}
 
 return {
     [1233642074] = {
@@ -120,10 +126,14 @@ return {
             --tree:add_le(fields.routedrpc_targetzdoid_id, body_range:range(offset, 4))
             --offset = offset + 4
             
+            local method_hash = body_range:range(offset, 4):le_int()
             tree:add_le(fields.routedrpc_type, body_range:range(offset, 4))
             offset = offset + 4
             
-            offset = readers.addBytes(body_range, tree, "Parameters", fields.routedrpc_parameterslength, fields.routedrpc_parameters, offset)
+            -- skip pkg count bytes
+            offset = offset + 4
+            
+            --offset = readers.addBytes(body_range, tree, "Parameters", fields.routedrpc_parameterslength, --fields.routedrpc_parameters, offset)
             
             --tree:add(fields.routedrpc_parameters, body_range:range(offset, ticketLen))
             
@@ -137,7 +147,13 @@ return {
             --      bytes
             --      
             
+            -- routedrpc sub table
+            local method = routed[method_hash]
+            local method_tree = tree:add(proto, body_range:range(offset), method and method.name or "Unknown")
             
+            if method then            
+                method.parser(body_range, packet_info, tree, offset)
+            end
             
             -- read length first
             --tree:add_le(fields.routedrpc_parameters, body_range:range(offset, 4))
