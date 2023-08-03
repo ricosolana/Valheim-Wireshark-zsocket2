@@ -26,5 +26,40 @@ return {
             
         end
     },
-
+    [-1100589719] = {
+        name = "LocationIcons",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    },
+    [-1550530018] = {
+        name = "SetEvent",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    },
+    [-1182660091] = {
+        name = "ChatMessage",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    },
+    [-461013576] = {
+        name = "Step",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    },
+    [531685242] = {
+        name = "SetTrigger",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    },
+    [199378019] = {
+        name = "DestroyZDO",
+        parser = function(body_range, packet_info, tree, offset)
+            
+        end
+    }
 }
