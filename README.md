@@ -5,4 +5,4 @@ This is for use with ZSocket2 Valheim mod and/or on Valhalla TCP-backend in orde
 
 The default port is TCP port 2456.
 
-To install, put `zsocket2.lua` and `zsocket/` into C:\Users\USER\AppData\Roaming\Wireshark\plugins.
+To install, put `zsocket2.lua` and `zsocket/` into C:\Users\USER\AppData\Roaming\Wireshark\plugins\4.0. This can be easily opened with `Help -> About Wireshark -> Folders -> Personal Lua Plugins (Lua scripts)`
