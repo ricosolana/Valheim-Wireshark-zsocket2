@@ -229,4 +229,14 @@ function proto.dissector(tvbuf, packet_info, root)
     return bytes_consumed
 end
 
+-- set_plugin_info(table)
+-- https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm_modules.html
+local my_info = {
+    version = "1.0.0",
+    author = "crazicrafter1",
+    repository = "https://github.com/PeriodicSeizures/Valheim-Wireshark-zsocket2"   
+}
+
+set_plugin_info(my_info)
+
 DissectorTable.get("tcp.port"):add(constants.PORT, proto)
