@@ -13,6 +13,9 @@ local NAME = constants.NAME
 local HEADER_SIZE = constants.HEADER_SIZE
 
 local proto = Proto(NAME, "ZSocket2")
+proto.prefs.port_range = Pref.range("Port Range", constants.PORT, 2456, 65535)
+port_range = proto.prefs.port_range
+
 readers.set_proto(proto)
 
 local rpcs = assert(require("zsocket2_rpcs"))
@@ -169,6 +172,16 @@ end
 -- Whenever Wireshark dissects a packet that our Proto is hooked into, it will call
 -- this function and pass it these arguments for the packet it's dissecting.
 function proto.dissector(tvbuf, packet_info, root)
+    local port = packet_info.src_port
+    local min_port, max_port = port_range:match("(%d+)-(%d+)")
+    if min_port and max_port then
+        min_port = tonumber(min_port)
+        max_port = tonumber(max_port)
+        if not (port >= min_port and port <= max_port) then
+            return false
+        end
+    end
+        
     -- get the length of the packet buffer (Tvb).
     local packet_length = tvbuf:len()
 
@@ -232,11 +245,11 @@ end
 -- set_plugin_info(table)
 -- https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm_modules.html
 local my_info = {
-    version = "1.0.0",
+    version = "1.0.1",
     author = "crazicrafter1",
-    repository = "https://github.com/PeriodicSeizures/Valheim-Wireshark-zsocket2"   
+    repository = "https://github.com/PeriodicSeizures/Valheim-Wireshark-zsocket2"
 }
 
 set_plugin_info(my_info)
 
-DissectorTable.get("tcp.port"):add(constants.PORT, proto)
+DissectorTable.get("tcp.port"):add(port_range, proto)
