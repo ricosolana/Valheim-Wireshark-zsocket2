@@ -1,8 +1,10 @@
 # Valheim-Wireshark-zsocket2
- Wireshark Dissector Lua Plugin for Valheim
 
-This is for use with ZSocket2 Valheim mod and/or on Valhalla TCP-backend in order to view network packets sent across client and server.
+Wireshark Dissector Lua Plugin for Valheim (**TCP ONLY**)
 
-The default port is TCP port 2456.
+## Installation
 
-To install, put `zsocket2.lua` and `zsocket/` into C:\Users\USER\AppData\Roaming\Wireshark\plugins\4.0. This can be easily opened with `Help -> About Wireshark -> Folders -> Personal Lua Plugins (Lua scripts)`
+- Open the folder easily with Wireshark `Help -> About Wireshark -> Folders -> Personal Lua Plugins (Lua scripts)`/
+- Extract everything from `zsocket/` into `~\AppData\Roaming\Wireshark\plugins\4.0`/
+- Close and reopen Wireshark/
+- By default, TCP port 2456 will be automatically dissected/
