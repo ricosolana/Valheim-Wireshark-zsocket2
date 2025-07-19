@@ -1,5 +1,7 @@
 # Valheim-Wireshark-zsocket2
 
+*This branch is under development, and currently considered non-functional due to unforeseen bugs*
+
 Wireshark Dissector Lua Plugin for Valheim (**TCP ONLY**)
 
 <img width="961" height="441" alt="image" src="https://github.com/user-attachments/assets/b9a24732-9059-4db5-a7e2-0a6b22d568ee" />

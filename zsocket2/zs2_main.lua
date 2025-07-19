@@ -6,60 +6,61 @@
 -- https://gitlab.com/wireshark/wireshark/-/merge_requests/11787
 --package.prepend_path("plugins/zsocket2")
 
-local constants = assert(require("zsocket2_constants"))
-local readers = assert(require("zsocket2_readers"))
+local constants = assert(require("zs2_constants"))
+local types = assert(require("zs2_types"))
+
+-- TODO ...
+return
 
 local NAME = constants.NAME
 local HEADER_SIZE = constants.HEADER_SIZE
 
-local proto = Proto(NAME, "ZSocket2")
+local proto = Proto(NAME, "zs2")
 proto.prefs.port_range = Pref.range("Port Range", constants.PORT, 2456, 65535)
-port_range = proto.prefs.port_range
+local port_range = proto.prefs.port_range
 
-readers.set_proto(proto)
+types.set_proto(proto)
 
-local rpcs = assert(require("zsocket2_rpcs"))
-local fields = assert(require("zsocket2_fields"))
+--local rpcs = assert(require("zs2_rpcs2"))
+--local fields = assert(require("zs2_field_wrappers"))
 
-proto.fields = fields
+--proto.fields = fields
 
 -- this holds the plain "data" Dissector, in case we can't dissect it
 local data = Dissector.get("data")
 
 -- Extract the length of the message from the header.
 -- This length should include the size of the header itself.
-function read_message_length_from_header(header_range)
+local read_message_length_from_header = function(header_range)
     local length_prefix_range = header_range:range(0, 4)
     return length_prefix_range:le_int() + 4
     --return length_prefix_range:le_int()
 end
 
 -- Whatever you return from this method is passed as the first argument into dissect_message_fields
-function dissect_header_fields(header_range, packet_info, tree)
+local dissect_header_fields = function(header_range, packet_info, tree)
     -- https://www.wireshark.org/docs/wsdg_html_chunked/lua_module_Tree.html
-    local length_prefix_range = header_range:range(0, 4)
-    tree:add_packet_field(fields.length_prefix, length_prefix_range, ENC_LITTLE_ENDIAN)
-
-    --local type_range = header_range:range(4, 4)
-    --tree:add_packet_field(fields.type, type_range, ENC_LITTLE_ENDIAN)
-    --
-    --return type_range:le_int();
+    --local length_prefix_range = header_range:range(0, 4)
+    --tree:add_le(fields.msg_type, )
+    ----tree:add_packet_field(fields.msg_type, length_prefix_range, ENC_LITTLE_ENDIAN)
 end
 
-
-
-function dissect_message_fields(header_result, body_range, packet_info, root)
+local dissect_message_fields = function(header_result, body_range, packet_info, root)
     local rpc = rpcs[header_result]
     local text = rpc and (rpc.name) or ("Unknown (" .. header_result .. ")")
-    
+
     if string.find(tostring(packet_info.cols.info), "^" .. NAME .. ":") == nil then
         packet_info.cols.info:append(": " .. text)
     else
         packet_info.cols.info:append(", " .. text)
     end
-    
+
     local tree = root:add(proto, body_range(), text)
-    
+
+    -- TODO
+    --  parser will be not so manual
+    --  will be more arg-type declaring
+    --  more simple readers for field-arguments
     if rpc and rpc.parser then
         rpc.parser(body_range, packet_info, tree, 0)
     end
@@ -78,7 +79,7 @@ end
 --      If negative, then the absolute value of this is the number of bytes necessary to get a complete message.
 --      If -DESEGMENT_ONE_MORE_SEGMENT, then an unknown number of bytes are still necessary to get a complete message.
 --   2. the TvbRange object for the header. This is nil if length <= 0.
-checkLength = function (tvbuf, offset)
+local check_length = function(tvbuf, offset)
     -- This example protocol implementation never returns 0 from this function,
     -- but if you get a packet that doesn't look like it's from your protocol,
     -- then it would be appropriate to return 0 from this function.
@@ -125,8 +126,8 @@ end
 -- positive number, or as a negative number the number of additional bytes it
 -- needs if the Tvb doesn't have them all, or a 0 for error.
 --
-function dissect(tvbuf, packet_info, root, offset)
-    local message_length, header_range = checkLength(tvbuf, offset)
+local dissect = function(tvbuf, packet_info, root, offset)
+    local message_length, header_range = check_length(tvbuf, offset)
 
     if message_length <= 0 then
         return message_length
@@ -152,10 +153,11 @@ function dissect(tvbuf, packet_info, root, offset)
 
     -- dissect the packet length
     dissect_header_fields(header_range, packet_info, tree)
-    
+
     local type_range = header_range:range(4, 4)
-    valheim_tree:add_packet_field(fields.type, type_range, ENC_LITTLE_ENDIAN)
-    
+    --valheim_tree:add_packet_field(fields.msg_type, type_range, ENC_LITTLE_ENDIAN)
+    valheim_tree:add_le(fields.msg_type, type_range)
+
     local hash = type_range:le_int()
 
     -- dissect the message fields
@@ -181,7 +183,7 @@ function proto.dissector(tvbuf, packet_info, root)
             return false
         end
     end
-        
+
     -- get the length of the packet buffer (Tvb).
     local packet_length = tvbuf:len()
 
@@ -198,7 +200,6 @@ function proto.dissector(tvbuf, packet_info, root)
     -- dissector() will only be called once per TCP segment, so we
     -- need to do this loop to dissect each message in it
     while bytes_consumed < packet_length do
-
         -- We're going to call our "dissect()" function, which is defined
         -- later in this script file. The dissect() function returns the
         -- length of the message it dissected as a positive number, or if
@@ -208,9 +209,9 @@ function proto.dissector(tvbuf, packet_info, root)
         local result = dissect(tvbuf, packet_info, root, bytes_consumed)
 
         if result > 0 then
+            -- go again on another while loop
             -- we successfully processed a message, of 'result' length
             bytes_consumed = bytes_consumed + result
-            -- go again on another while loop
         elseif result == 0 then
             -- If the result is 0, then it means we hit an error of some kind,
             -- so return 0. Returning 0 tells Wireshark this packet is not for
@@ -231,7 +232,7 @@ function proto.dissector(tvbuf, packet_info, root)
             -- number of Tvb bytes we "successfully processed", namely the
             -- length of the Tvb
             return packet_length
-        end        
+        end
     end
 
     -- In a TCP dissector, you can either return nothing, or return the number of
