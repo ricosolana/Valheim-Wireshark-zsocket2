@@ -38,6 +38,10 @@ local id_validate = function(id)
 end
 
 local field_class_parser = function(wrapper, body_range, root, offset)
+    for k, v in pairs(wrapper) do
+        print(tostring(k) .. " ||| " .. tostring(v))
+    end
+
     root:add_le(wrapper.field, body_range:range(offset, wrapper.size))
     return offset + wrapper.size
 end
@@ -199,14 +203,14 @@ local fields_mapped = {
     }
 }
 
-local generator = function(type_key, ws_id, name, base_opt)
+local _generator = function(type_key, ws_id, name, base_opt)
     local mapped = fields_mapped[type_key]
-    local parser = assert(mapped.parser, 'mapped class "' .. type_key .. '" is missing a parser')
 
     -- to be filled out
     --local mapper_key  -- fwd
     local wrapper = {
-        parser = parser
+        parser = assert(mapped.parser, 'mapped class "' .. type_key .. '" is missing a parser'),
+        name = assert(name, "Must assign name to wrapper")
     }
 
     local field_classes = mapped.field_classes
@@ -217,26 +221,44 @@ local generator = function(type_key, ws_id, name, base_opt)
 
         for k, field_class in pairs(field_classes) do
             local absolute_id = id_validate(ws_id .. "." .. k)
-            local field = field_class(absolute_id, name, base_opt)
+            local field = assert(field_class(absolute_id, name, base_opt))
             fields[k] = field -- trivial parser access!
 
-            -- must be unique, but name is whatever
-            proto.fields = proto.fields or {}
-            local pfs = proto.fields
-            pfs[ws_id .. "_" .. k] = field -- field is now registered
+            --proto.fields[ws_id .. "_" .. k] = field --field is now registered
+            proto.fields[#proto.fields + 1] = field
         end
 
         wrapper.fields = fields
     else
+        --wrapper.field = proto.fields[ws_id]
+        --wrapper.field = proto.fields[ws_id]
         local field_class = assert(mapped.field_class, 'must assign a "field_class" or "field_classes"')
 
         local absolute_id = id_validate(ws_id)
-        local field = field_class(absolute_id, name, base_opt) --, base.DEC) --hmm...
+        local field = assert(field_class(absolute_id, name, base_opt)) -- field is ctor'd
+
+        --proto.fields[ws_id] = assert(field_class(absolute_id, name, base_opt)) --field is now registered
+
+        -- We do not
+        -- fk
+        proto.fields[#proto.fields + 1] = field
 
         wrapper.field = field
+        wrapper.size = mapped.size -- nil-nil | or value!
     end
 
     return wrapper
+end
+
+local _compiler = function(wrappers)
+    -- registers all protos at once
+    local fields = {}
+
+    --https://stackoverflow.com/questions/75379622/how-to-add-an-array-of-fields-as-a-protofield-in-lua-dissector
+    for k, field in pairs(wrappers) do
+    end
+
+    proto.fields = fields
 end
 
 --[[
@@ -255,7 +277,7 @@ usage:
     wrapper = generator()
 --]]
 return {
-    generator = generator,
+    generator = _generator,
     set_proto = function(_proto)
         proto = _proto
     end,

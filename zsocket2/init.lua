@@ -6,11 +6,14 @@
 -- https://gitlab.com/wireshark/wireshark/-/merge_requests/11787
 --package.prepend_path("plugins/zsocket2")
 
-local constants = assert(require("zs2_constants"))
-local types = assert(require("zs2_types"))
+-- init.lua will be loaded first
+-- https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm.html
 
--- TODO ...
-return
+-- for debug logging during Wireshark init
+--  Edit -> Preferences -> Advanced -> 'gui.console_open' change to ALWAYS
+-- restart wireshark from cli
+
+local constants = assert(require("zs2_constants"))
 
 local NAME = constants.NAME
 local HEADER_SIZE = constants.HEADER_SIZE
@@ -19,12 +22,16 @@ local proto = Proto(NAME, "zs2")
 proto.prefs.port_range = Pref.range("Port Range", constants.PORT, 2456, 65535)
 local port_range = proto.prefs.port_range
 
+local types = assert(require("zs2_types"))
 types.set_proto(proto)
 
---local rpcs = assert(require("zs2_rpcs2"))
---local fields = assert(require("zs2_field_wrappers"))
+local rpcs = assert(require("zs2_rpcs2"))
+local wrappers = assert(require("zs2_field_wrappers"))
+--assert(require("zs2_field_wrappers"))
 
 --proto.fields = fields
+
+--local fields = proto.fields
 
 -- this holds the plain "data" Dissector, in case we can't dissect it
 local data = Dissector.get("data")
@@ -55,13 +62,12 @@ local dissect_message_fields = function(header_result, body_range, packet_info, 
         packet_info.cols.info:append(", " .. text)
     end
 
-    local tree = root:add(proto, body_range(), text)
-
     -- TODO
     --  parser will be not so manual
     --  will be more arg-type declaring
     --  more simple readers for field-arguments
     if rpc and rpc.parser then
+        local tree = root:add(proto, body_range(), text)
         rpc.parser(body_range, packet_info, tree, 0)
     end
 end
@@ -156,7 +162,8 @@ local dissect = function(tvbuf, packet_info, root, offset)
 
     local type_range = header_range:range(4, 4)
     --valheim_tree:add_packet_field(fields.msg_type, type_range, ENC_LITTLE_ENDIAN)
-    valheim_tree:add_le(fields.msg_type, type_range)
+    --valheim_tree:add_le(fields.msg_type, type_range)
+    wrappers["msg_type"]:parser(type_range, valheim_tree, offset)
 
     local hash = type_range:le_int()
 

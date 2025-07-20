@@ -3,7 +3,7 @@ local fields = assert(require("zs2_field_wrappers"))
 local prefabs = assert(require("zs2_prefabs"))
 local constants = assert(require("zs2_constants"))
 
-local proto = readers.get_proto()
+local proto = types.get_proto()
 
 local PORT = constants.PORT
 
