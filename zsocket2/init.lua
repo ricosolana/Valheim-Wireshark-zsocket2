@@ -54,7 +54,7 @@ end
 
 local dissect_message_fields = function(header_result, body_range, packet_info, root)
     local rpc = rpcs[header_result]
-    local text = rpc and (rpc.name) or ("Unknown (" .. header_result .. ")")
+    local text = rpc and rpc.name or ("Unknown (" .. header_result .. ")")
 
     if string.find(tostring(packet_info.cols.info), "^" .. NAME .. ":") == nil then
         packet_info.cols.info:append(": " .. text)
@@ -66,9 +66,28 @@ local dissect_message_fields = function(header_result, body_range, packet_info, 
     --  parser will be not so manual
     --  will be more arg-type declaring
     --  more simple readers for field-arguments
-    if rpc and rpc.parser then
-        local tree = root:add(proto, body_range(), text)
-        rpc.parser(body_range, packet_info, tree, 0)
+    if rpc then
+        local parser = rpc.parser
+        local params = rpc.params
+
+        local offset = 0
+
+        -- parser is parameterized
+        if parser then
+            assert(not params, "'params' and 'parser' is set, is this intentional?")
+
+            local tree = root:add(proto, body_range(), text)
+            rpc:parser(body_range, packet_info, tree, offset)
+        else
+            -- otherwise, params is chosen if present
+            local params = rpc.params
+            if params then
+                local tree = root:add(proto, body_range(), text)
+                for i, v in ipairs(params) do
+                    offset = v:parser(body_range, tree, offset)
+                end
+            end
+        end
     end
 end
 

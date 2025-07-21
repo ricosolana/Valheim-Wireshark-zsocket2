@@ -13,21 +13,8 @@ end
 
 gen("int32", "msg_type", "Message Type")
 gen("bool", "ping_or_pong", "Is Ping Test Message")
-gen("bool", "s2c_handshake.locked", "Has Password")
-gen("string", "s2c_handshake.salt", "Password Salt")
-gen("int64", "peerinfo.user_id", "User ID")
-gen("string", "peerinfo.version", "Game Version")
-gen("uint32", "peerinfo.network_version", "Network Version")
-gen("vec3", "peerinfo.ref_pos", "Reference Position")
---gen("string", "peerinfo.name", "Character Name")
---gen("bytes", "peerinfo.password", "Password (MD5)")
---gen("bytes", "peerinfo.ticket", "Session Ticket")
---gen("string", "peerinfo.world", "World Name")
---gen("uint32", "peerinfo.seed_hash", "World Seed (Hash)")
---gen("string", "peerinfo.seed_name", "World Seed")
---gen("int64", "peerinfo.world_id", "World ID")
---gen("int32", "peerinfo.world_gen", "World Version")
---gen("double", "peerinfo.world_time", "World Time")
+--gen("bool", "s2c_handshake.locked", "Has Password")
+--gen("string", "s2c_handshake.salt", "Password Salt")
 
 --[[
 return {

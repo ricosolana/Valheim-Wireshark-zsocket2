@@ -38,12 +38,15 @@ local id_validate = function(id)
 end
 
 local field_class_parser = function(wrapper, body_range, root, offset)
-    for k, v in pairs(wrapper) do
-        print(tostring(k) .. " ||| " .. tostring(v))
-    end
+    --for k, v in pairs(wrapper) do
+    --    print(tostring(k) .. " ||| " .. tostring(v))
+    --end
 
-    root:add_le(wrapper.field, body_range:range(offset, wrapper.size))
-    return offset + wrapper.size
+    local value_range = body_range:range(offset, wrapper.size)
+    --root:add_le(wrapper.field, value_range)
+    local _, value = root:add_packet_field(wrapper.field, value_range, ENC_LITTLE_ENDIAN)
+
+    return offset + wrapper.size, value -- TODO read the UType
 end
 
 --local field_class_ctor = function(self_mapper, base)
@@ -54,6 +57,9 @@ end
 local field_class_mapper = function(field_class, size)
     return {
         field_class = field_class,
+        -- TODO make an additional 'forward' member
+        -- to directly copy members over to field,
+        -- maybe evan a shallow copied dict!
         size = size,
         parser = field_class_parser
     }
@@ -66,7 +72,9 @@ end
     what is a mapper?
         the internal memory-efficient shallow-copier
 --]]
-local fields_mapped = {
+local fields_mapped  -- fwd
+
+fields_mapped = {
     --  and will be used by every rpc/route/view... -- map will contain basic type definitions
     uint8 = field_class_mapper(ProtoField.uint8, 1), -- size
     uint16 = field_class_mapper(ProtoField.uint16, 2),
@@ -85,17 +93,17 @@ local fields_mapped = {
             -- parser
             local length_range = body_range:range(offset, 4)
             local length = length_range:le_int()
-            local bytes_range = body_range(offset + 4, length)
+            local payload_range = body_range(offset + 4, length)
+            local entire_range = body_range(offset, 4 + length)
 
             -- Subtree
-            local tree =
-                root:add(proto, body_range(offset, 4 + length), wrapper.name .. " (" .. tostring(length) .. " bytes)")
+            local tree = root:add(proto, entire_range, wrapper.name .. " (" .. tostring(length) .. " bytes)")
 
             -- Ranged fields
             --tree:add_le(field_length, length_range)
-            tree:add(wrapper.field, bytes_range)
+            tree:add(wrapper.field, payload_range)
 
-            return offset + 4 + length
+            return offset + 4 + length, payload_range -- TODO range here to conform, but... might not be correct return value
         end
     },
     string = {
@@ -105,6 +113,7 @@ local fields_mapped = {
         parser = function(wrapper, body_range, root, offset)
             local length, offset_payload = read_encoded_int(body_range, offset)
             local string_range = body_range:range(offset_payload, length) --, offset + length
+            local value = string_range:string()
 
             --local tree = root:add(proto, body_range(offset, (offset1 - offset) + length), get_field_name(field_string) .. " (" .. string_range:string() .. ")")
 
@@ -112,7 +121,7 @@ local fields_mapped = {
                 root:add(
                 proto,
                 body_range(offset, (offset_payload - offset) + length),
-                wrapper.name .. " (" .. string_range:string() .. ")"
+                wrapper.name .. " (" .. value .. ")"
             )
 
             -- Encoded 7-bit (display)
@@ -122,11 +131,16 @@ local fields_mapped = {
             -- String contents (field)
             tree:add(wrapper.field, string_range) --, ENC_UTF_8 + ENC_STRING)
 
-            return offset_payload + length
+            return offset_payload + length, value
         end
     },
     zdoid = {
         field_classes = {userid = ProtoField.int64, id = ProtoField.uint32},
+        -- TODO; unused
+        type_classes = {
+            userid = "int64",
+            id = "uint32"
+        },
         --mapped_classes = {userid = }
         -- self is 'this' (wrapper) table
         --  wrapper:parser(tree)
@@ -160,7 +174,8 @@ local fields_mapped = {
                 root:add(
                 proto,
                 body_range(offset, 12),
-                name .. " (" .. x_range:le_float() .. ", " .. y_range:le_float() .. ", " .. z_range:le_float() .. ")"
+                wrapper.name ..
+                    " (" .. x_range:le_float() .. ", " .. y_range:le_float() .. ", " .. z_range:le_float() .. ")"
             )
 
             -- Ranged fields
@@ -185,7 +200,41 @@ local fields_mapped = {
                 root:add(
                 proto,
                 body_range(offset, 16),
-                name ..
+                wrapper.name ..
+                    " (" ..
+                        x_range:le_float() ..
+                            ", " ..
+                                y_range:le_float() .. ", " .. z_range:le_float() .. ", " .. w_range:le_float() .. ")"
+            )
+
+            -- Ranged fields
+            tree:add_le(wrapper.fields.x, x_range)
+            tree:add_le(wrapper.fields.y, y_range)
+            tree:add_le(wrapper.fields.z, z_range)
+            tree:add_le(wrapper.fields.z, w_range)
+
+            return offset + 16
+        end
+    },
+    container = {
+        --field_classes = {x = ProtoField.float, y = ProtoField.float, z = ProtoField.float, w = ProtoField.float},
+        type_classes = function(class_key)
+        end,
+        parser = function(wrapper, body_range, root, offset)
+            error("nyi; container")
+
+            -- Ranges
+            local x_range = body_range:range(offset + 0, 4)
+            local y_range = body_range:range(offset + 4, 4)
+            local z_range = body_range:range(offset + 8, 4)
+            local w_range = body_range:range(offset + 12, 4)
+
+            -- Subtree
+            local tree =
+                root:add(
+                proto,
+                body_range(offset, 16),
+                wrapper.name ..
                     " (" ..
                         x_range:le_float() ..
                             ", " ..
@@ -203,14 +252,18 @@ local fields_mapped = {
     }
 }
 
-local _generator = function(type_key, ws_id, name, base_opt)
-    local mapped = fields_mapped[type_key]
+local generator = function(class_key, sub_filter_id, name, base_optional)
+    local mapped = fields_mapped[class_key]
+
+    assert(name and type(name) == "string", "name must be a string")
+    assert(sub_filter_id and type(sub_filter_id) == "string", "filter_id must be a string")
 
     -- to be filled out
     --local mapper_key  -- fwd
     local wrapper = {
-        parser = assert(mapped.parser, 'mapped class "' .. type_key .. '" is missing a parser'),
-        name = assert(name, "Must assign name to wrapper")
+        parser = assert(mapped.parser, 'mapped class "' .. class_key .. '" is missing a parser'),
+        name = name,
+        sub_filter_id = sub_filter_id
     }
 
     local field_classes = mapped.field_classes
@@ -220,8 +273,8 @@ local _generator = function(type_key, ws_id, name, base_opt)
         local fields = {}
 
         for k, field_class in pairs(field_classes) do
-            local absolute_id = id_validate(ws_id .. "." .. k)
-            local field = assert(field_class(absolute_id, name, base_opt))
+            local absolute_id = id_validate(sub_filter_id .. "." .. k)
+            local field = assert(field_class(absolute_id, name, base_optional))
             fields[k] = field -- trivial parser access!
 
             --proto.fields[ws_id .. "_" .. k] = field --field is now registered
@@ -231,11 +284,10 @@ local _generator = function(type_key, ws_id, name, base_opt)
         wrapper.fields = fields
     else
         --wrapper.field = proto.fields[ws_id]
-        --wrapper.field = proto.fields[ws_id]
         local field_class = assert(mapped.field_class, 'must assign a "field_class" or "field_classes"')
 
-        local absolute_id = id_validate(ws_id)
-        local field = assert(field_class(absolute_id, name, base_opt)) -- field is ctor'd
+        local absolute_id = id_validate(sub_filter_id)
+        local field = assert(field_class(absolute_id, name, base_optional)) -- field is ctor'd
 
         --proto.fields[ws_id] = assert(field_class(absolute_id, name, base_opt)) --field is now registered
 
@@ -250,6 +302,7 @@ local _generator = function(type_key, ws_id, name, base_opt)
     return wrapper
 end
 
+--[[
 local _compiler = function(wrappers)
     -- registers all protos at once
     local fields = {}
@@ -259,8 +312,7 @@ local _compiler = function(wrappers)
     end
 
     proto.fields = fields
-end
-
+end--]]
 --[[
 usage:
     local generator = assert(require('zs2_types'))
@@ -277,7 +329,7 @@ usage:
     wrapper = generator()
 --]]
 return {
-    generator = _generator,
+    generator = generator,
     set_proto = function(_proto)
         proto = _proto
     end,
