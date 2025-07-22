@@ -37,16 +37,16 @@ local id_validate = function(id)
     return NAME .. "." .. id
 end
 
-local field_class_parser = function(wrapper, body_range, root, offset)
+local field_class_parser = function(wrapper, body_range, root, offset, label)
     --for k, v in pairs(wrapper) do
     --    print(tostring(k) .. " ||| " .. tostring(v))
     --end
 
     local value_range = body_range:range(offset, wrapper.size)
     --root:add_le(wrapper.field, value_range)
-    local _, value = root:add_packet_field(wrapper.field, value_range, ENC_LITTLE_ENDIAN)
+    local child_tree, value = root:add_packet_field(wrapper.field, value_range, ENC_LITTLE_ENDIAN, label) -- might be opt...
 
-    return offset + wrapper.size, value -- TODO read the UType
+    return offset + wrapper.size, value, child_tree
 end
 
 --local field_class_ctor = function(self_mapper, base)
@@ -89,7 +89,7 @@ fields_mapped = {
     bool = field_class_mapper(ProtoField.bool, 1),
     bytes = {
         field_class = ProtoField.bytes,
-        parser = function(wrapper, body_range, root, offset)
+        parser = function(wrapper, body_range, root, offset) -- TODO label
             -- parser
             local length_range = body_range:range(offset, 4)
             local length = length_range:le_int()
@@ -110,7 +110,7 @@ fields_mapped = {
         field_class = ProtoField.string,
         -- self is 'this' (wrapper) table
         --  mapped.string:parser(tree)
-        parser = function(wrapper, body_range, root, offset)
+        parser = function(wrapper, body_range, root, offset) -- TODO label
             local length, offset_payload = read_encoded_int(body_range, offset)
             local string_range = body_range:range(offset_payload, length) --, offset + length
             local value = string_range:string()
@@ -144,7 +144,7 @@ fields_mapped = {
         --mapped_classes = {userid = }
         -- self is 'this' (wrapper) table
         --  wrapper:parser(tree)
-        parser = function(wrapper, body_range, root, offset)
+        parser = function(wrapper, body_range, root, offset) -- TODO label
             local range_userid = body_range(offset, 8)
             local range_id = body_range(offset + 8, 4)
 
@@ -155,10 +155,15 @@ fields_mapped = {
                 wrapper.name .. " (" .. tostring(range_userid:le_int64()) .. ":" .. tostring(range_id:le_uint()) .. ")"
             )
 
-            tree:add_le(wrapper.fields.userid, range_userid)
-            tree:add_le(wrapper.fields.id, range_id)
+            local _, user_id_value = tree:add_packet_field(wrapper.fields.userid, range_userid, ENC_LITTLE_ENDIAN)
+            local _, id_value = tree:add_packet_field(wrapper.fields.id, range_id, ENC_LITTLE_ENDIAN)
 
-            return offset + 12
+            local obj = {
+                user_id = user_id_value,
+                id = id_value
+            }
+
+            return offset + 12, obj
         end
     },
     vec3 = {
@@ -178,12 +183,17 @@ fields_mapped = {
                     " (" .. x_range:le_float() .. ", " .. y_range:le_float() .. ", " .. z_range:le_float() .. ")"
             )
 
-            -- Ranged fields
-            tree:add_le(wrapper.fields.x, x_range)
-            tree:add_le(wrapper.fields.y, y_range)
-            tree:add_le(wrapper.fields.z, z_range)
+            local _, x_value = tree:add_packet_field(wrapper.fields.x, x_range, ENC_LITTLE_ENDIAN)
+            local _, y_value = tree:add_packet_field(wrapper.fields.y, y_range, ENC_LITTLE_ENDIAN)
+            local _, z_value = tree:add_packet_field(wrapper.fields.z, z_range, ENC_LITTLE_ENDIAN)
 
-            return offset + 12
+            local obj = {
+                x = x_value,
+                y = y_value,
+                z = z_value
+            }
+
+            return offset + 12, obj
         end
     },
     quat = {
@@ -207,13 +217,19 @@ fields_mapped = {
                                 y_range:le_float() .. ", " .. z_range:le_float() .. ", " .. w_range:le_float() .. ")"
             )
 
-            -- Ranged fields
-            tree:add_le(wrapper.fields.x, x_range)
-            tree:add_le(wrapper.fields.y, y_range)
-            tree:add_le(wrapper.fields.z, z_range)
-            tree:add_le(wrapper.fields.z, w_range)
+            local _, x_value = tree:add_packet_field(wrapper.fields.x, x_range, ENC_LITTLE_ENDIAN)
+            local _, y_value = tree:add_packet_field(wrapper.fields.y, y_range, ENC_LITTLE_ENDIAN)
+            local _, z_value = tree:add_packet_field(wrapper.fields.z, z_range, ENC_LITTLE_ENDIAN)
+            local _, w_value = tree:add_packet_field(wrapper.fields.w, w_range, ENC_LITTLE_ENDIAN)
 
-            return offset + 16
+            local obj = {
+                x = x_value,
+                y = y_value,
+                z = z_value,
+                w = w_value
+            }
+
+            return offset + 16, obj
         end
     },
     container = {
@@ -274,7 +290,7 @@ local generator = function(class_key, sub_filter_id, name, base_optional)
 
         for k, field_class in pairs(field_classes) do
             local absolute_id = id_validate(sub_filter_id .. "." .. k)
-            local field = assert(field_class(absolute_id, name, base_optional))
+            local field = assert(field_class(absolute_id, k, base_optional))
             fields[k] = field -- trivial parser access!
 
             --proto.fields[ws_id .. "_" .. k] = field --field is now registered

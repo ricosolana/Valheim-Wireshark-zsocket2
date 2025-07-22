@@ -185,10 +185,88 @@ return {
     },
     [-1975616347] = {
         name = "ZDOData",
+        fields = compile {
+            gen("zdoid", "zdodata.id", "ZDOID"),
+            gen("uint16", "zdodata.owner_rev", "Owner Rev"),
+            gen("uint32", "zdodata.data_rev", "Data Rev"),
+            gen("int64", "zdodata.owner", "Owner"),
+            gen("vec3", "zdodata.pos", "Position"),
+            --gen('uint16', 'zdodata.owner_rev', 'Owner Rev')
+            --TODO sub-data members
+            gen("uint16", "zdodata.flags", "Flags"),
+            gen("int32", "zdodata.hash", "Prefab Hash"),
+            gen("vec3", "zdodata.rot", "Rotation"),
+            gen("uint8", "zdodata.conn_type", "Connection Type"),
+            gen("zdoid", "zdodata.conn_target", "Connection Target"),
+            --gen('uint8', 'zdodata.float_num', 'Float Count'), -- dumb
+            gen("int32", "zdodata.float_hash", "Hash (Float)"), -- hmm
+            gen("float", "zdodata.float_value", "Value (Float)") -- hmm
+        },
         parser = function(self, body_range, packet_info, tree, offset)
             -- TODO
             --  ... list all ZDOs and their members
             --  MAYBE, in expert mode, list changed members, or somehow...
+
+            -- skip <pkg-len>
+            offset = offset + 4
+
+            local invalid_count = body_range(offset, 4):le_int()
+            offset = offset + 4 -- skip
+
+            -- skip all read zdoids
+            offset = offset + invalid_count * 12
+
+            --local stop_count = 5
+
+            while true do
+                local root1 = tree:add(proto, body_range()) -- no text for now...
+
+                --local root1 = tree:add(proto, body_range(), tostring(zdoid.user_id) .. ":" .. tostring(zdoid.id))
+
+                local zdoid
+                offset, zdoid = self.fields["zdodata.id"]:parser(body_range, root1, offset)
+
+                root1:set_text("ZDO (" .. tostring(zdoid.user_id) .. ":" .. tostring(zdoid.id) .. ")")
+
+                if zdoid.user_id == 0 and zdoid.id == 0 then
+                    break
+                end
+
+                --stop_count = stop_count - 1
+                --if stop_count <= 0 then
+                --    break
+                --end
+
+                -- create sub-tree
+
+                offset = self.fields["zdodata.owner_rev"]:parser(body_range, root1, offset)
+                offset = self.fields["zdodata.data_rev"]:parser(body_range, root1, offset)
+                offset = self.fields["zdodata.owner"]:parser(body_range, root1, offset)
+                offset = self.fields["zdodata.pos"]:parser(body_range, root1, offset)
+
+                --local offset, pkg_len = self.fields["zdodata.pos"]:parser(body_range, tree, offset)
+                local pkg_len = body_range(offset, 4):le_int()
+                offset = offset + 4
+
+                --[[
+                    ZDO deserialize
+                --]]
+                local sub_offset = offset
+
+                -- zdodata.flags
+                local flags
+                sub_offset, flags = self.fields["zdodata.flags"]:parser(body_range, root1, sub_offset)
+
+                local prefab_hash, child_tree
+                sub_offset, prefab_hash, child_tree = self.fields["zdodata.hash"]:parser(body_range, root1, sub_offset)
+                child_tree:append_text(": (" .. (Prefabs[prefab_hash] or "???") .. ")")
+                -- append text
+
+                sub_offset = self.fields["zdodata.rot"]:parser(body_range, root1, sub_offset)
+
+                -- skip zdo-data parameters (tmp for now..)
+                offset = offset + pkg_len
+            end
         end
     },
     [-2045981424] = {
