@@ -26,6 +26,10 @@ local compile = function(wrapper_array)
     return res
 end
 
+-- dict of collected peers during <PeerInfo>
+--  by steam-id
+local expert_peers = {}
+
 return {
     [0] = {
         name = "(KeepAlive)",
@@ -110,6 +114,24 @@ return {
             end
         end
     },
+    [542500494] = {
+        name = "ServerSyncedPlayerData",
+        fields = compile {
+            gen("vec3", "rpcsynced.pos", "Position"),
+            gen("bool", "rpcsynced.public", "Public Position"),
+            gen("string", "rpcsynced.key", "Key"),
+            gen("string", "rpcsynced.value", "Value")
+        },
+        parser = function(self, body_range, packet_info, tree, offset)
+            --skip <pkg-len>
+            offset = offset + 4
+
+            offset = self.fields["rpcsynced.pos"]:parser(body_range, tree, offset)
+            offset = self.fields["rpcsynced.public"]:parser(body_range, tree, offset)
+
+            -- TODO key/value
+        end
+    },
     [-265949079] = {
         name = "PlayerList",
         parser = function(self, body_range, packet_info, tree, offset)
@@ -131,10 +153,14 @@ return {
             -- skip <routedrpc.msgid>
             offset = offset + 8
 
+            packet_info.cols.info:prepend("[")
+            packet_info.cols.info:append("]")
+
             offset = self.fields["routedrpc.sender"]:parser(body_range, tree, offset)
             offset = self.fields["routedrpc.target"]:parser(body_range, tree, offset)
             offset = self.fields["routedrpc.target_zdo"]:parser(body_range, tree, offset)
-            local offset, hash = self.fields["routedrpc.method"]:parser(body_range, tree, offset)
+            local hash
+            offset, hash = self.fields["routedrpc.method"]:parser(body_range, tree, offset)
             -- TODO map HASH / target to determine method
             -- INVOKE
             --packet_info.cols.info:append(": " .. tostring(hash))
@@ -146,19 +172,23 @@ return {
                 TODO this will basically be a repeat invoker of rpc
             --]]
             local routed = RoutedRpcs[hash]
-            local text = routed and routed.name or ("Unknown (" .. header_result .. ")")
+            local text = routed and routed.name or ("??? (" .. hash .. ")")
 
-            if string.find(tostring(packet_info.cols.info), "^" .. NAME .. ":") == nil then
-                packet_info.cols.info:append(": " .. text)
-            else
-                packet_info.cols.info:append(", " .. text)
-            end
+            packet_info.cols.info:append(": " .. text)
+
+            --if string.find(tostring(packet_info.cols.info), "^" .. NAME .. ":") == nil then
+            --    packet_info.cols.info:append(": " .. text)
+            --else
+            --    packet_info.cols.info:append(", " .. text)
+            --end
 
             -- TODO
             --  parser will be not so manual
             --  will be more arg-type declaring
             --  more simple readers for field-arguments
             if routed then
+                -- TODO IMPL / err on co-op packets
+                --if false then
                 local parser = routed.parser
                 local params = routed.params
 
@@ -169,14 +199,16 @@ return {
                     assert(not params, "'params' and 'parser' is set, is this intentional?")
 
                     local root1 = tree:add(proto, body_range(), text)
-                    routed:parser(body_range, packet_info, root1, offset)
+                    offset = routed:parser(body_range, packet_info, root1, offset)
                 else
                     -- otherwise, params is chosen if present
                     local params = routed.params
                     if params then
                         local root1 = tree:add(proto, body_range(), text)
                         for i, v in ipairs(params) do
-                            offset = v:parser(body_range, root1, offset)
+                            local val
+                            offset, val = v:parser(body_range, root1, offset)
+                            packet_info.cols.info:append(", " .. tostring(val))
                         end
                     end
                 end

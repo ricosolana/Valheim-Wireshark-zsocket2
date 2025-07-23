@@ -232,6 +232,13 @@ fields_mapped = {
             return offset + 16, obj
         end
     },
+    userinfo = {
+        field_classes = {name = ProtoField.string, id = ProtoField.string},
+        parser = function(wrapper, body_range, root, offset)
+            --wrapper.fields.name
+            error("userinfo is nyi")
+        end
+    },
     container = {
         --field_classes = {x = ProtoField.float, y = ProtoField.float, z = ProtoField.float, w = ProtoField.float},
         type_classes = function(class_key)
