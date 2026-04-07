@@ -1,3 +1,5 @@
+Project retired and consolidated into https://github.com/Avledet
+
 # Valheim-Wireshark-zsocket2
 
 Wireshark Dissector Lua Plugin for Valheim (**TCP ONLY**)
